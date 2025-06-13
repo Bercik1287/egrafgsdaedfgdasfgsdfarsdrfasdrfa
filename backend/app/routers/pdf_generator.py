@@ -13,6 +13,7 @@ import json
 import os
 import tempfile
 from typing import List, Dict
+import unicodedata
 
 class BusSchedulePDF(FPDF):
     def __init__(self):
@@ -21,7 +22,7 @@ class BusSchedulePDF(FPDF):
         
     def header(self):
         self.set_font('Arial', 'B', 16)
-        self.cell(0, 10, 'Rozklad Jazdy Autobusow', 0, 1, 'C')
+        self.cell(0, 10, self._safe_text('Rozkład Jazdy Autobusów'), 0, 1, 'C')
         self.set_font('Arial', '', 10)
         self.cell(0, 5, f'Wygenerowano: {datetime.now().strftime("%d.%m.%Y %H:%M")}', 0, 1, 'C')
         self.ln(10)
@@ -30,6 +31,36 @@ class BusSchedulePDF(FPDF):
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
         self.cell(0, 10, f'Strona {self.page_no()}', 0, 0, 'C')
+    
+    def _safe_text(self, text: str) -> str:
+        """Convert Polish characters to ASCII approximations"""
+        if not text:
+            return ""
+        
+        # Custom mapping for Polish characters
+        polish_chars = {
+            'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n',
+            'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
+            'Ą': 'A', 'Ć': 'C', 'Ę': 'E', 'Ł': 'L', 'Ń': 'N',
+            'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z'
+        }
+        
+        result = text
+        for polish, ascii_char in polish_chars.items():
+            result = result.replace(polish, ascii_char)
+        
+        # Remove any remaining non-ASCII characters
+        try:
+            result.encode('latin1')
+            return result
+        except UnicodeEncodeError:
+            # If there are still problematic characters, use unidecode-like approach
+            return unicodedata.normalize('NFKD', result).encode('ascii', 'ignore').decode('ascii')
+    
+    def safe_cell(self, w, h, txt='', border=0, ln=0, align='', fill=False, link=''):
+        """Safe cell method that handles Polish characters"""
+        safe_txt = self._safe_text(str(txt))
+        self.cell(w, h, safe_txt, border, ln, align, fill, link)
 
 class ScheduleGenerator:
     def __init__(self, db_session: Session):
